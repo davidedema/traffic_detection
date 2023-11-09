@@ -5,14 +5,18 @@ import time
 
 def draw_flow(img, flow, step=16):
     
+    # Get the shape of the image
     h, w = img.shape[:2]
+    # Create a grid of points
     y, x = np.mgrid[step/2:h:step, step/2:w:step].reshape(2, -1).astype(int)
+    # Get the flow of the points
     fx, fy = flow[y, x].T
-
+    # Create a grid of lines if there is a flow
     lines = np.vstack([x, y, x-fx, y-fy]).T.reshape(-1, 2, 2)
     lines = np.int32(lines + 0.5)
-
+    
     img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    # Draw the lines in the frame
     cv2.polylines(img_bgr, lines, 0, (0, 255, 0))
 
     for (x1, y1), (_x2, _y2) in lines:
@@ -23,6 +27,7 @@ def draw_flow(img, flow, step=16):
 def draw_hsv(flow):
 
     h, w = flow.shape[:2]
+    # Get the flow of the points
     fx, fy = flow[:,:,0], flow[:,:,1]
 
     ang = np.arctan2(fy, fx) + np.pi
@@ -53,7 +58,7 @@ while (video.isOpened()):
 
     start = time.time()
 
-
+    # Calculate the optical flow
     flow = cv2.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
     prevgray = gray
 
