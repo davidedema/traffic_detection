@@ -13,14 +13,14 @@ def draw_flow(img, flow, step=16):
     fx, fy = flow[y, x].T
     # Create a grid of lines if there is a flow
     lines = np.vstack([x, y, x-fx, y-fy]).T.reshape(-1, 2, 2)
-    lines = np.int32(lines + 0.5)
+    lines = np.int32(lines)
     
     img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     # Draw the lines in the frame
     cv2.polylines(img_bgr, lines, 0, (0, 255, 0))
 
-    for (x1, y1), (_x2, _y2) in lines:
-        cv2.circle(img_bgr, (x1, y1), 1, (0, 255, 0), -1)
+    # for (x1, y1), (_x2, _y2) in lines:
+    #     cv2.circle(img_bgr, (x1, y1), 1, (0, 255, 0), -1)
 
     return img_bgr
 
@@ -43,6 +43,14 @@ def draw_hsv(flow):
 
     return bgr
 
+def shi_tomasi(img): 
+    corners = cv2.goodFeaturesToTrack(gray, 100, 0.01, 10)
+    corners = np.int0(corners)
+    # draw red color circles on all corners 
+    for i in corners: 
+        x, y = i.ravel() 
+        cv2.circle(img, (x, y), 3, (255, 0, 0), -1)
+    return img
 
 video = cv2.VideoCapture('/home/davide/Desktop/drones/assets/video2.mp4')
 
@@ -55,7 +63,6 @@ prevgray = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
 while (video.isOpened()):
     suc, img = video.read()
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
     start = time.time()
 
     # Calculate the optical flow
@@ -66,9 +73,9 @@ while (video.isOpened()):
 
     fps = 1/(end-start)
     if suc == True:
+        # cv2.imshow('frame', shi_tomasi(img))
         cv2.imshow('flow', draw_flow(gray, flow))
-        cv2.imshow('flow HSV', draw_hsv(flow))
-        
+        # cv2.imshow('flow HSV', draw_hsv(flow))
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
