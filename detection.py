@@ -7,7 +7,7 @@ VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
 
 def main():
     cap = cv2.VideoCapture(VIDEO_PATH)
-    fgbg = cv2.createBackgroundSubtractorMOG2()
+    fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows=False, varThreshold=30)
     prev_centroids = []
 
     while cap.isOpened():
@@ -62,6 +62,7 @@ def main():
                 cv2.circle(frame, (centroid_x, centroid_y), 3, (0, 255, 0), -1)
             
             # Detect the direction (UP or DOWN) of the cars
+            # FIXIT: This is not working properly
             try:
                 for i in range(len(current_centroids)):
                     if len(prev_centroids) > 0:
