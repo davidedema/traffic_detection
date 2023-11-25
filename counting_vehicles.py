@@ -3,12 +3,12 @@ import cv2
 import os
 
 PATH = os.path.dirname(os.path.abspath(__file__))
-VIDEO_PATH = os.path.join(PATH, "assets", "video2.mp4")
+VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
 
 COUNT_LINE_POS = 0
-CONTOUR_WIDTH = (70,150)
-CONTOUR_HEIGHT = (70,150)
-OFFSET_FOR_DETECTION = 6
+CONTOUR_WIDTH = (70,300)
+CONTOUR_HEIGHT = (70,300)
+OFFSET_FOR_DETECTION = 8
 
 def extractBgAndFilter(frame, bg_subtractor)->np.ndarray:
     """Extract background and filter a frame"""
@@ -43,7 +43,7 @@ def drawBoundingBoxes(contours, frame)->list:
 
     for c in contours:
         (x, y, w, h) = cv2.boundingRect(c)
-        contour_valid = (w >= CONTOUR_WIDTH[0]) and w <= (CONTOUR_WIDTH[1]) and (h >= CONTOUR_HEIGHT[0]) and (h <= CONTOUR_HEIGHT[1])
+        contour_valid = (w >= CONTOUR_WIDTH[0]) and (h >= CONTOUR_HEIGHT[0]) #and w <= (CONTOUR_WIDTH[1])  and (h <= CONTOUR_HEIGHT[1])
 
         if not contour_valid:
             continue
@@ -74,7 +74,7 @@ def countVehicles(frame, detectedVehicles, vehicleCounter)->int:
 def process_video(videoCapture):
     """Process video frame by frame and detect vehicles counting them"""
 
-    bg_subtractor = cv2.createBackgroundSubtractorMOG2()
+    bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
 
     while True:
