@@ -41,6 +41,12 @@ def remove_overlapping_boxes(bounding_boxes):
     
     return non_overlapping_boxes
 
+def getCentroid(x1, y1, x2, y2):
+    centroid_x = int((x1 + x2) / 2)
+    centroid_y = int((y1 + y2) / 2)
+
+    return centroid_x, centroid_y
+
 def detect_direction(current_centroids, prev_centroids, frame):
     try:
         for i in range(len(current_centroids)):
@@ -95,12 +101,11 @@ def process_video(videoCapture):
         current_centroids = []
         for box in non_overlapping_boxes:
             x1, y1, x2, y2 = box
-            centroid_x = (x1 + x2) // 2
-            centroid_y = (y1 + y2) // 2
-            current_centroids.append((centroid_x, centroid_y))
+            centroid = getCentroid(x1, y1, x2, y2)
+            current_centroids.append(centroid)
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-            cv2.circle(frame, (centroid_x, centroid_y), 3, (0, 255, 0), -1)
+            cv2.circle(frame, centroid, 3, (0, 255, 0), -1)
         
         # Detect the direction (UP or DOWN) of the cars
         detect_direction(current_centroids, prev_centroids, frame)
@@ -108,7 +113,7 @@ def process_video(videoCapture):
 
         cv2.imshow("frame", frame)
 
-        if cv2.waitKey(25) & 0xFF == ord("q"):
+        if cv2.waitKey(100) & 0xFF == ord("q"):
             break
 
     videoCapture.release()
