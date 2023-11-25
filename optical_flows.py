@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import time
+import os
 
 def draw_flow(img, flow, step=16):
     
@@ -52,39 +52,48 @@ def shi_tomasi(img):
         cv2.circle(img, (x, y), 3, (255, 0, 0), -1)
     return img
 
-video = cv2.VideoCapture('/home/davide/Desktop/drones/assets/video2.mp4')
+def processVideo(videoPath):
+    video = cv2.VideoCapture(videoPath)
 
-if (video.isOpened()== False): 
-    print("Error opening video stream or file")
+    if (video.isOpened()== False): 
+        print("Error opening video stream or file")
 
-suc, prev = video.read()
-prevgray = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
+    suc, prev = video.read()
+    if suc:
+        prevgray = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
 
-while (video.isOpened()):
-    suc, img = video.read()
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    start = time.time()
+    while (video.isOpened()):
 
-    # Calculate the optical flow
-    flow = cv2.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-    prevgray = gray
-
-    end = time.time()
-
-    fps = 1/(end-start)
-    if suc == True:
-        # cv2.imshow('frame', shi_tomasi(img))
-        cv2.imshow('flow', draw_flow(gray, flow))
-        # cv2.imshow('flow HSV', draw_hsv(flow))
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        ret, img = video.read()
+        if not ret:
             break
 
-  # Break the loop
-    else: 
-        break   
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        start = time.time()
 
-video.release()
+        # Calculate the optical flow
+        flow = cv2.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        prevgray = gray
 
-# Closes all the frames
-cv2.destroyAllWindows()
+        end = time.time()
+
+        fps = 1/(end-start)
+
+        # cv2.imshow('frame', shi_tomasi(img))
+        cv2.imshow('flow', draw_flow(gray, flow))
+        cv2.imshow('flow HSV', draw_hsv(flow))
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break 
+
+    video.release()
+
+    # Closes all the frames
+    cv2.destroyAllWindows()
+
+PATH = os.path.dirname(os.path.abspath(__file__))
+VIDEO_PATH = os.path.join(PATH, "assets", "test.mp4")
+
+if __name__ == "__main__":
+    
+    processVideo(VIDEO_PATH)
 

@@ -3,11 +3,11 @@ import cv2
 import os
 
 PATH = os.path.dirname(os.path.abspath(__file__))
-VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
+VIDEO_PATH = os.path.join(PATH, "assets", "video2.mp4")
 
-COUNT_LINE_POS = 550
-MIN_CONTOUR_WIDTH = 70
-MIN_CONTOUR_HEIGHT = 70
+COUNT_LINE_POS = 0
+CONTOUR_WIDTH = (70,150)
+CONTOUR_HEIGHT = (70,150)
 OFFSET_FOR_DETECTION = 6
 
 def extractBgAndFilter(frame, bg_subtractor)->np.ndarray:
@@ -43,7 +43,7 @@ def drawBoundingBoxes(contours, frame)->list:
 
     for c in contours:
         (x, y, w, h) = cv2.boundingRect(c)
-        contour_valid = (w >= MIN_CONTOUR_WIDTH) and (h >= MIN_CONTOUR_HEIGHT)
+        contour_valid = (w >= CONTOUR_WIDTH[0]) and w <= (CONTOUR_WIDTH[1]) and (h >= CONTOUR_HEIGHT[0]) and (h <= CONTOUR_HEIGHT[1])
 
         if not contour_valid:
             continue
@@ -74,11 +74,13 @@ def countVehicles(frame, detectedVehicles, vehicleCounter)->int:
 def process_video(videoCapture):
     """Process video frame by frame and detect vehicles counting them"""
 
-    bg_subtractor = cv2.createBackgroundSubtractorKNN()
+    bg_subtractor = cv2.createBackgroundSubtractorMOG2()
     vehicleCounter = 0
 
     while True:
         ret, frame = videoCapture.read()
+        global COUNT_LINE_POS
+        COUNT_LINE_POS = int((frame.shape[0]*4/5))
 
         if ret == False:
             break
