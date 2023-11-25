@@ -10,7 +10,8 @@ MIN_CONTOUR_WIDTH = 70
 MIN_CONTOUR_HEIGHT = 70
 OFFSET_FOR_DETECTION = 6
 
-def extractBgAndFilter(frame, bg_subtractor):
+def extractBgAndFilter(frame, bg_subtractor)->np.ndarray:
+    """Extract background and filter a frame"""
 
     greyFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurredFrame = cv2.GaussianBlur(greyFrame, (15,15), 0)
@@ -22,11 +23,11 @@ def extractBgAndFilter(frame, bg_subtractor):
     dilated = cv2.morphologyEx(dilatatedFrame, cv2.MORPH_CLOSE, kernel)
     dilated = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, kernel)
 
-    cv2.imshow("Dilated", img_sub)
-
     return dilated
 
-def centerCoordinates(x, y, w, h):
+def centerCoordinates(x, y, w, h)->tuple:
+    """Calculate center coordinates of a bounding box"""
+
     x1 = int(w/2)
     y1 = int(h/2)
 
@@ -35,10 +36,12 @@ def centerCoordinates(x, y, w, h):
 
     return cx, cy
 
-def drawBoundingBoxes(contours, frame):
+def drawBoundingBoxes(contours, frame)->list:
+    """Draw bounding boxes around detected vehicles and return their center coordinates"""
+
     detectedVehicles = []
 
-    for (i, c) in enumerate(contours):
+    for c in contours:
         (x, y, w, h) = cv2.boundingRect(c)
         contour_valid = (w >= MIN_CONTOUR_WIDTH) and (h >= MIN_CONTOUR_HEIGHT)
 
@@ -54,9 +57,11 @@ def drawBoundingBoxes(contours, frame):
 
     return detectedVehicles
 
-def countVehicles(frame, detectedVehicles, vehicleCounter):
 
-    for (i, (x,y)) in enumerate(detectedVehicles):
+def countVehicles(frame, detectedVehicles, vehicleCounter)->int:
+    """Count vehicles that cross the counting line with a margin of error"""
+
+    for (x,y) in detectedVehicles:
         if y < (COUNT_LINE_POS + OFFSET_FOR_DETECTION) and y > (COUNT_LINE_POS - OFFSET_FOR_DETECTION):
             vehicleCounter += 1
             cv2.line(frame, (25, COUNT_LINE_POS), (1200, COUNT_LINE_POS), (0,127,255), 3)
@@ -67,6 +72,7 @@ def countVehicles(frame, detectedVehicles, vehicleCounter):
     return vehicleCounter
 
 def process_video(videoCapture):
+    """Process video frame by frame and detect vehicles counting them"""
 
     bg_subtractor = cv2.createBackgroundSubtractorKNN()
     vehicleCounter = 0
@@ -77,6 +83,7 @@ def process_video(videoCapture):
         if ret == False:
             break
 
+        #TODO - improve background subtraction
         filteredImage = extractBgAndFilter(frame, bg_subtractor)
 
         contours, _ = cv2.findContours(filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -89,7 +96,7 @@ def process_video(videoCapture):
         vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
         cv2.putText(frame, "Vehicle detected: " + str(vehicleCounter), (450,70), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255), 5)
 
-        cv2.imshow("Detection2", filteredImage)
+        cv2.imshow("Vehicles counter", frame)
 
         if cv2.waitKey(100) & 0xFF == ord("q"):
             break
