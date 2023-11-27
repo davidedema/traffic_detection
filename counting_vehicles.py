@@ -30,19 +30,21 @@ def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
 # TODO - improve this function
 
 
-def filterLines(lines, boundingBoxes):
+def filterAndUnifyLines(lines, boundingBoxes):
     """Filter lines that are inside bounding boxes and return a single average of all of them for each box"""
 
     linesInBoundingBoxes = {}
     filteredLines = np.empty((0, 2, 2), dtype=np.int32)
-    for line in lines:
-        x1, y1 = line[0]
-        x2, y2 = line[1]
-        for i, (x, y, w, h) in enumerate(boundingBoxes):
+    
+    # for each bounding box find the lines that are inside it
+    for i,(x, y, w, h) in enumerate(boundingBoxes):
+        linesInBoundingBoxes[i] = []
+        for line in lines:
+            x1, y1 = line[0]
+            x2, y2 = line[1]
             if x1 > x and x2 < (x + w) and y1 > y and y2 < (y + h):
                 linesInBoundingBoxes[i].append(line)
                 
-    print(linesInBoundingBoxes)
     # for each bounding identified by a dict key find the average of all the points
     for boxId in linesInBoundingBoxes.keys():
         avgStartPoint = np.zeros(2)
@@ -54,28 +56,50 @@ def filterLines(lines, boundingBoxes):
 
         avgStartPoint = avgStartPoint / len(linesInBoundingBoxes[boxId])
         avgStopPoint = avgStopPoint / len(linesInBoundingBoxes[boxId])
-        #assign to filtered lines such us the resulting shape is (?, 2,2)
-        # avgLine = np.array([avgStartPoint, avgStopPoint])
-        # filteredLines = np.vstack([filteredLines, avgLine])
-        
-        
+        filteredLines = np.vstack([filteredLines, np.array([[avgStartPoint, avgStopPoint]]).astype(int)])
 
     return filteredLines
 
+def scale_vector(p1, p2, scaling_factor):
+    """
+    Scale a vector defined by two points (p1 and p2) by a scaling factor.
+    
+    Parameters:
+    - p1: Tuple representing the coordinates (x, y) of the first point.
+    - p2: Tuple representing the coordinates (x, y) of the second point.
+    - scaling_factor: The factor by which to scale the vector.
 
-def draw_flow(img, flow, boundingBoxes, step=16):
+    Returns:
+    - Tuple representing the coordinates of the new endpoint after scaling.
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+    new_x = x1 + scaling_factor * (x2 - x1)
+    new_y = y1 + scaling_factor * (y2 - y1)
+    
+    return int(new_x), int(new_y)
+
+
+def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
+
     h, w = img.shape[:2]
     # TODO - improve this function (compute only the one that are inside the bounding boxes)
     y, x = np.mgrid[step / 2 : h : step, step / 2 : w : step].reshape(2, -1).astype(int)
     fx, fy = flow[y, x].T
+    fx = fx
+    fy = fy
 
     lines = np.vstack([x, y, x - fx, y - fy]).T.reshape(-1, 2, 2)
     lines = np.int32(lines)
 
-    lines = filterLines(lines, boundingBoxes)
+    lines = filterAndUnifyLines(lines, boundingBoxes)
 
-    img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    cv2.polylines(img_bgr, lines, 0, (0, 255, 0))
+    for line in lines:
+        start_point = tuple(line[1])
+        end_point = tuple(line[0])
+        end_point_rescaled = scale_vector(start_point, end_point, 5)
+        cv2.arrowedLine(img_bgr, start_point, end_point_rescaled, (0,255,0), 2, tipLength=0.3)
+
 
     return img_bgr
 
@@ -183,11 +207,11 @@ def process_video(videoCapture):
         )
         prev_gray = gray_frame
 
-        frame_with_flow = draw_flow(gray_frame, flow, boundingBoxes)
-        # cv2.imshow("Vehicles counter", frame_with_flow)
-        cv2.imshow("Vehicles counter", frame)
+        frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
+        cv2.imshow("Vehicles flows", frame_with_flow)
+        # cv2.imshow("Vehicles counter", frame)
 
-        if cv2.waitKey(100) & 0xFF == ord("q"):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
 
