@@ -272,8 +272,9 @@ def process_video(videoCapture):
         flow = cv2.calcOpticalFlowFarneback(
             prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
         )
+        frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
+        cv2.imshow("Vehicles flows", frame_with_flow)
         prev_gray = gray_frame
-        cv2.imshow("Vehicles flows", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
