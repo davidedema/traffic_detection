@@ -10,6 +10,8 @@ CONTOUR_WIDTH = (70, 300)
 CONTOUR_HEIGHT = (70, 300)
 OFFSET_FOR_DETECTION = 8
 
+FRAME_FOR_MASK_CREATION = 5
+
 def extend_line(line, imageWidth):
     """
     Extend a line across the entire image while maintaining its direction.
@@ -47,50 +49,50 @@ def find_intersection_point(line1, line2):
 
     return x_intersect, y_intersect
 
-def cropStreet(frame):
+def cropStreet(frames):
     """
     Create a mask for cropping the street
     """
+    for frame in frames:
+        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Reshaping the image into a 2D array of pixels and 3 color values (RGB) 
+        pixel_values = image.reshape(-1,3)
 
-    # Reshaping the image into a 2D array of pixels and 3 color values (RGB) 
-    pixel_values = image.reshape(-1,3)
+        # Convert to float type to apply kmeans algorithm
+        pixel_values = np.float32(pixel_values)
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
+        k = 3
+        retval, labels, centers = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
 
-    # Convert to float type to apply kmeans algorithm
-    pixel_values = np.float32(pixel_values)
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
-    k = 3
-    retval, labels, centers = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        #Segmenting the original image with kmeans results
+        centers = np.uint8(centers)
+        segmented_data = centers[labels.flatten()]
+        segmented_image = segmented_data.reshape((image.shape))
 
-    #Segmenting the original image with kmeans results
-    centers = np.uint8(centers)
-    segmented_data = centers[labels.flatten()]
-    segmented_image = segmented_data.reshape((image.shape))
+        edges = cv2.Canny(segmented_image, 50, 150, apertureSize=3)
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 30, minLineLength=200, maxLineGap=5)
+        if lines is None:
+            print("No lines detected")
+            return segmented_image
+        
+        lines = lines.reshape(-1,4) # remove redundant dimensions
+        validLines = ([],[])
 
-    edges = cv2.Canny(segmented_image, 50, 150, apertureSize=3)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 30, minLineLength=200, maxLineGap=5)
-    if lines is None:
-        print("No lines detected")
-        return segmented_image
-    
-    lines = lines.reshape(-1,4) # remove redundant dimensions
-    validLines = ([],[])
+        for line in lines:
 
-    for line in lines:
+            extended_line = extend_line(line, image.shape[1])
+            x1, y1, x2, y2 = extended_line
 
-        extended_line = extend_line(line, image.shape[1])
-        x1, y1, x2, y2 = extended_line
+            #discard lines mostly horizontal or vertical
+            slope = (y2 - y1) / (x2 - x1 + 1e-5) # avoid division by zero
+            if abs(slope) < 0.2 or abs(slope) > 2.0:
+                continue
 
-        #discard lines mostly horizontal or vertical
-        slope = (y2 - y1) / (x2 - x1 + 1e-5) # avoid division by zero
-        if abs(slope) < 0.2 or abs(slope) > 2.0:
-            continue
-
-        if y1 > y2:        # left line
-            validLines[0].append(extended_line)
-        else:               # right line
-            validLines[1].append(extended_line)
+            if y1 > y2:        # left line
+                validLines[0].append(extended_line)
+            else:               # right line
+                validLines[1].append(extended_line)
 
     leftmostLine = (0,0,0,0)
     rightmostLine = (0,0,0,0)
@@ -107,8 +109,10 @@ def cropStreet(frame):
     intersectingPoint = find_intersection_point(leftmostLine, rightmostLine)
     
     # create a mask to crop the street
+    bottomLeft = (0, image.shape[0])
+    bottomRight = (image.shape[1], image.shape[0])
     mask = np.zeros(frame.shape, dtype=np.uint8)
-    roi_corners = np.array([[(leftmostLine[0], leftmostLine[1]), (rightmostLine[2], rightmostLine[3]), intersectingPoint]], dtype=np.int32)
+    roi_corners = np.array([[bottomLeft, (leftmostLine[0], leftmostLine[1]), intersectingPoint, (rightmostLine[2], rightmostLine[3]), bottomRight]], dtype=np.int32)
     channel_count = frame.shape[2]
     ignore_mask_color = (255,) * channel_count
     cv2.fillPoly(mask, roi_corners, ignore_mask_color)
@@ -284,10 +288,16 @@ def process_video(videoCapture):
 
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
+    
+    maskFrameCounter = 0
+    frameForMask = []
 
     ret, frame = videoCapture.read()
+    
     if ret:
-        mask = cropStreet(frame)
+        maskFrameCounter = maskFrameCounter + 1
+        frameForMask.append(frame)
+        mask = np.zeros(frame.shape, dtype=np.uint8)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         global COUNT_LINE_YPOS
@@ -297,6 +307,14 @@ def process_video(videoCapture):
         ret, frame = videoCapture.read()
         if ret == False:
             break
+        # Get the frame for creating the mask
+        if maskFrameCounter < FRAME_FOR_MASK_CREATION:
+            maskFrameCounter = maskFrameCounter + 1
+            frameForMask.append(frame)
+        # Create the mask   
+        elif maskFrameCounter == FRAME_FOR_MASK_CREATION:
+            maskFrameCounter = maskFrameCounter + 1
+            mask = cropStreet(frameForMask)
 
         masked_frame = cv2.bitwise_and(frame, mask)
         gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
