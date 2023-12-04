@@ -79,6 +79,7 @@ def cropStreet(frames):
         lines = lines.reshape(-1,4) # remove redundant dimensions
         validLines = ([],[])
 
+
         for line in lines:
 
             extended_line = extend_line(line, image.shape[1])
@@ -105,7 +106,7 @@ def cropStreet(frames):
     #draw the lines
     cv2.line(segmented_image, (leftmostLine[0], leftmostLine[1]), (leftmostLine[2], leftmostLine[3]), (255, 0, 0), 3)
     cv2.line(segmented_image, (rightmostLine[0], rightmostLine[1]), (rightmostLine[2], rightmostLine[3]), (255, 255, 0), 3)
-    cv2.imshow("segmented image", segmented_image)
+    # cv2.imshow("segmented image", segmented_image)
     intersectingPoint = find_intersection_point(leftmostLine, rightmostLine)
     
     # create a mask to crop the street
@@ -116,7 +117,6 @@ def cropStreet(frames):
     channel_count = frame.shape[2]
     ignore_mask_color = (255,) * channel_count
     cv2.fillPoly(mask, roi_corners, ignore_mask_color)
-    # cv2.imshow("mask", mask)
 
     return mask
 
@@ -179,12 +179,6 @@ def filterAndUnifyLines(lines, boundingBoxes):
 def scale_vector(p1, p2, scaling_factor):
     """
     Scale a vector defined by two points (p1 and p2) by a scaling factor.
-
-    Parameters:
-    - p1: Tuple representing the coordinates (x, y) of the first point.
-    - p2: Tuple representing the coordinates (x, y) of the second point.
-    - scaling_factor: The factor by which to scale the vector.
-
     Returns:
     - Tuple representing the coordinates of the new endpoint after scaling.
     """
@@ -245,12 +239,10 @@ def drawBoundingBoxes(contours, frame) -> list:
 
     for c in contours:
         (x, y, w, h) = cv2.boundingRect(c)
-        contour_valid = (w >= CONTOUR_WIDTH[0]) and (
-            h >= CONTOUR_HEIGHT[0]
-        )  # and w <= (CONTOUR_WIDTH[1])  and (h <= CONTOUR_HEIGHT[1])
+        contour_valid = (w >= CONTOUR_WIDTH[0]) and (h >= CONTOUR_HEIGHT[0]) and (w <= CONTOUR_WIDTH[1]) and (h <= CONTOUR_HEIGHT[1])
 
         if not contour_valid:
-            continue
+            continue        
 
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         boundingBoxes.append((x, y, w, h))
@@ -269,11 +261,9 @@ def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
     """
 
     for x, y in detectedVehicles:
-        if COUNT_LINE_YPOS - OFFSET_FOR_DETECTION <= y <= COUNT_LINE_YPOS + OFFSET_FOR_DETECTION:
+        if ((COUNT_LINE_YPOS - OFFSET_FOR_DETECTION) <= y <= (COUNT_LINE_YPOS + OFFSET_FOR_DETECTION)):
             vehicleCounter += 1
-            cv2.line(
-                frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (0, 127, 255), 3
-            )
+            cv2.line(frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (0, 127, 255), 3)
             detectedVehicles.remove((x, y))
 
             print(f"Vehicle detected: {vehicleCounter}")
@@ -295,7 +285,7 @@ def process_video(videoCapture):
     ret, frame = videoCapture.read()
     
     if ret:
-        maskFrameCounter = maskFrameCounter + 1
+        maskFrameCounter += 1
         frameForMask.append(frame)
         mask = np.zeros(frame.shape, dtype=np.uint8)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -309,15 +299,16 @@ def process_video(videoCapture):
             break
         # Get the frame for creating the mask
         if maskFrameCounter < FRAME_FOR_MASK_CREATION:
-            maskFrameCounter = maskFrameCounter + 1
+            maskFrameCounter += 1
             frameForMask.append(frame)
         # Create the mask   
         elif maskFrameCounter == FRAME_FOR_MASK_CREATION:
-            maskFrameCounter = maskFrameCounter + 1
+            maskFrameCounter += 1
             mask = cropStreet(frameForMask)
 
         masked_frame = cv2.bitwise_and(frame, mask)
         gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
+        # cv2.imshow("Masked frame", masked_frame)
 
         filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
         contours, _ = cv2.findContours(filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -343,7 +334,7 @@ def process_video(videoCapture):
         frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
         cv2.imshow("Vehicles flows", frame_with_flow)
         prev_gray = gray_frame
-        if cv2.waitKey(100) & 0xFF == ord("q"):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
 
