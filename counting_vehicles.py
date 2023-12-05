@@ -282,12 +282,16 @@ def process_video(videoCapture):
     maskFrameCounter = 0
     frameForMask = []
 
+    #extract frame to create the mask
+    for i in range(FRAME_FOR_MASK_CREATION):
+        ret, frame = videoCapture.read()
+        if ret != False:
+            frameForMask.append(frame)
+
     ret, frame = videoCapture.read()
     
     if ret:
-        maskFrameCounter += 1
-        frameForMask.append(frame)
-        mask = np.zeros(frame.shape, dtype=np.uint8)
+        mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         global COUNT_LINE_YPOS
@@ -297,14 +301,6 @@ def process_video(videoCapture):
         ret, frame = videoCapture.read()
         if ret == False:
             break
-        # Get the frame for creating the mask
-        if maskFrameCounter < FRAME_FOR_MASK_CREATION:
-            maskFrameCounter += 1
-            frameForMask.append(frame)
-        # Create the mask   
-        elif maskFrameCounter == FRAME_FOR_MASK_CREATION:
-            maskFrameCounter += 1
-            mask = cropStreet(frameForMask)
 
         masked_frame = cv2.bitwise_and(frame, mask)
         gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
