@@ -106,7 +106,7 @@ def cropStreet(frames):
     #draw the lines
     cv2.line(segmented_image, (leftmostLine[0], leftmostLine[1]), (leftmostLine[2], leftmostLine[3]), (255, 0, 0), 3)
     cv2.line(segmented_image, (rightmostLine[0], rightmostLine[1]), (rightmostLine[2], rightmostLine[3]), (255, 255, 0), 3)
-    # cv2.imshow("segmented image", segmented_image)
+    cv2.imshow("segmented image", segmented_image)
     intersectingPoint = find_intersection_point(leftmostLine, rightmostLine)
     
     # create a mask to crop the street
@@ -304,7 +304,7 @@ def process_video(videoCapture):
 
         masked_frame = cv2.bitwise_and(frame, mask)
         gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
-        # cv2.imshow("Masked frame", masked_frame)
+        cv2.imshow("Masked frame", masked_frame)
 
         filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
         contours, _ = cv2.findContours(filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
