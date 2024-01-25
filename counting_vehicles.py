@@ -125,7 +125,6 @@ def cropStreet(frames):
         (255, 255, 0),
         3,
     )
-    # cv2.imshow("segmented image", segmented_image)
     intersectingPoint = find_intersection_point(leftmostLine, rightmostLine)
 
     # create a mask to crop the street
@@ -313,23 +312,32 @@ def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
     return vehicleCounter
 
 
-def detectVehiclesClass(filteredImage, frame, boundingBoxes):
+def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
+    """Detect the vehicles class (car or truck) and print it on the frame
+
+    Args:
+        filteredImage (np.ndarray): the filtered image
+        frame (np.ndarray): the frame
+        boundingBoxes (list): a list of bounding boxes
+
+    Returns:
+        frame (np.ndarray): the frame with the labels
     """
-    Detect vehicles class
-    detectedVehicles: list of tuples containing the center coordinates of the detected vehicles
-    boundingBoxes: list of tuples containing the bounding boxes of the detected vehicles
-    """
+
     # crop image on the bounding boxes
     for i, (x, y, w, h) in enumerate(boundingBoxes):
         crop = filteredImage[y : y + h, x : x + w]
         # count white pixels
         whitePixels = cv2.countNonZero(crop)
-        
+
         # calculate the percentage of white pixels
         percentage = whitePixels / (w * h)
-        
+        boundingBoxSize = w * h
+
+        score = calculateScore(percentage, boundingBoxSize)
+
         # put the label on the frame
-        if percentage > 0.75:
+        if score > 0.5:
             cv2.putText(
                 frame,
                 "Truck",
@@ -351,9 +359,40 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes):
             )
 
     return frame
+
+
+def calculateScore(percentage_white_pixels, bounding_box_size)-> float:
+    """
+    Calculate a score based on the percentage of white pixels and the bounding box size
+    
+    Args:
+        percentage_white_pixels (float): the percentage of white pixels
+        bounding_box_size (int): the bounding box size
+    
+    Returns:
+        score (float): the score
+    """ 
+    # Define maximum bounding box size (not precise)
+    max_bounding_box_size = 20000
+    # Define weights for combining normalized percentage and size
+    weight_percentage = 0.7
+    weight_size = 0.3
+
+    # Normalize the values to ensure they are on a similar scale
+    normalized_percentage = percentage_white_pixels / 100.0  # Normalize to [0, 1]
+    normalized_size = bounding_box_size / max_bounding_box_size  # Normalize to [0, 1]
+
+    # Combine normalized percentage and size using weighted sum
+    score = (weight_percentage * normalized_percentage) + (
+        weight_size * normalized_size
+    )
+
+    return score
+
+
 def process_video(videoCapture):
     """
-    Process video frame by frame and detect vehicles counting them
+    Process video frame by frame displaying the results
     """
 
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
@@ -378,7 +417,7 @@ def process_video(videoCapture):
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
 
     while True:
-        ret, frame = videoCapture.read() 
+        ret, frame = videoCapture.read()
         if ret == False:
             break
 
