@@ -46,11 +46,11 @@ def setupSocket() -> socket.socket:
 def extend_line(line, imageWidth):
     """
     Extend a line across the entire image while maintaining its direction.
-    
+
     Args:
         line (tuple): the line
         imageWidth (int): the image width
-    
+
     Returns:
         extended_x1 (int): the x coordinate of the first point of the extended line
         extended_y1 (int): the y coordinate of the first point of the extended line
@@ -76,11 +76,11 @@ def find_intersection_point(line1, line2):
     """
     Find the intersection point between two lines defined by their coordinates.
     Each line is represented by two points (x1, y1), (x2, y2).
-    
+
     Args:
         line1 (tuple): the first line
         line2 (tuple): the second line
-        
+
     Returns:
         x_intersect (float): the x coordinate of the intersection point
         y_intersect (float): the y coordinate of the intersection point
@@ -105,10 +105,10 @@ def find_intersection_point(line1, line2):
 def cropStreet(frames) -> np.ndarray:
     """
     Create a mask for cropping the street
-    
+
     Args:
         frames (list): a list of frames
-    
+
     Returns:
         mask (np.ndarray): the mask
     """
@@ -207,11 +207,11 @@ def cropStreet(frames) -> np.ndarray:
 def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
     """
     Extract background and filter a frame
-    
+
     Args:
         frame (np.ndarray): the frame
         bg_subtractor (cv2.BackgroundSubtractor): the background subtractor
-    
+
     Returns:
         dilated (np.ndarray): the filtered frame
     """
@@ -229,16 +229,16 @@ def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
     return dilated
 
 
-def filterAndUnifyLines(lines, boundingBoxes):
+def filterAndUnifyLines(lines, boundingBoxes) -> np.ndarray:
     """
     Filter lines that are inside bounding boxes and return a single average of all of them for each box
-    
+
     Args:
         lines (np.ndarray): the lines
         boundingBoxes (list): a list of bounding boxes
-        
+
     Returns:
-        filteredLines (np.ndarray): the filtered lines  
+        filteredLines (np.ndarray): the filtered lines
     """
 
     linesInBoundingBoxes = {}
@@ -274,12 +274,12 @@ def filterAndUnifyLines(lines, boundingBoxes):
 def scale_vector(p1, p2, scaling_factor):
     """
     Scale a vector defined by two points (p1 and p2) by a scaling factor.
-    
+
     Args:
         p1 (tuple): the first point
         p2 (tuple): the second point
         scaling_factor (int): the scaling factor
-        
+
     Returns:
         new_x (int): the new x coordinate
         new_y (int): the new y coordinate
@@ -295,14 +295,14 @@ def scale_vector(p1, p2, scaling_factor):
 def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
     """
     Draw the optical flow vectors on the given image.
-    
+
     Args:
         img (np.ndarray): the image
         img_bgr (np.ndarray): the image in BGR format
         flow (np.ndarray): the optical flow
         boundingBoxes (list): a list of bounding boxes
         step (int): the step for the lines
-        
+
     Returns:
         img_bgr (np.ndarray): the image with the optical flow vectors
     """
@@ -330,13 +330,13 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
 def centerCoordinates(x, y, w, h) -> tuple:
     """
     Calculate center coordinates of a bounding box
-    
+
     Args:
         x (int): x coordinate of the bounding box
         y (int): y coordinate of the bounding box
         w (int): width of the bounding box
         h (int): height of the bounding box
-        
+
     Returns:
         cx (int): x coordinate of the center
         cy (int): y coordinate of the center
@@ -354,11 +354,11 @@ def centerCoordinates(x, y, w, h) -> tuple:
 def drawBoundingBoxes(contours, frame) -> list:
     """
     Draw bounding boxes around detected vehicles and return their center coordinates
-    
+
     Args:
         contours (list): a list of contours
         frame (np.ndarray): the frame
-        
+
     Returns:
         detectedVehicles (list): a list of detected vehicles
         boundingBoxes (list): a list of bounding boxes
@@ -378,7 +378,7 @@ def drawBoundingBoxes(contours, frame) -> list:
 
         if not contour_valid:
             continue
-        
+
         # draw bounding boxes
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         boundingBoxes.append((x, y, w, h))
@@ -394,12 +394,12 @@ def drawBoundingBoxes(contours, frame) -> list:
 def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
     """
     Count vehicles that cross the counting line with a margin of error
-    
+
     Args:
         frame (np.ndarray): the frame
         detectedVehicles (list): a list of detected vehicles
         vehicleCounter (int): the vehicle counter
-        
+
     Returns:
         vehicleCounter (int): the vehicle counter
     """
@@ -470,17 +470,17 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
     return frame
 
 
-def calculateScore(percentage_white_pixels, bounding_box_size)-> float:
+def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
     """
     Calculate a score based on the percentage of white pixels and the bounding box size
-    
+
     Args:
         percentage_white_pixels (float): the percentage of white pixels
         bounding_box_size (int): the bounding box size
-    
+
     Returns:
         score (float): the score
-    """ 
+    """
     # Define maximum bounding box size (not precise)
     max_bounding_box_size = 20000
     # Define weights for combining normalized percentage and size
@@ -526,7 +526,7 @@ def process_video(videoCapture):
     """
     Process video frame by frame displaying the results
     """
-    
+
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
 
@@ -543,7 +543,7 @@ def process_video(videoCapture):
     if ret:
         mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
+
         # set the counting line position
         global COUNT_LINE_YPOS
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
@@ -573,14 +573,11 @@ def process_video(videoCapture):
 
         frame = detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
-        # draw counting line and counter
-        cv2.line(
-            frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (255, 127, 0), 3
-        )
+        # draw counter
         cv2.putText(
             frame,
             "Vehicle detected: " + str(vehicleCounter),
-            (450, 70),
+            (70, 70),
             cv2.FONT_HERSHEY_SIMPLEX,
             2,
             (0, 0, 255),
