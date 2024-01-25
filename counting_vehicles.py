@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import os
+import time
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
@@ -468,6 +469,29 @@ def calculateScore(percentage_white_pixels, bounding_box_size)-> float:
 
     return score
 
+def calculateFps(last_frame_time, frame) -> int:
+    """
+    Calculate the fps and put it on the frame
+
+    Args:
+        prev_frame_time (float): the previous frame time
+        frame (np.ndarray): the frame to put the fps on
+
+    Returns:
+        last_frame_time (float): the last frame time
+    """
+
+    new_frame_time = time.time()
+    fps = 1/(new_frame_time-last_frame_time) 
+    last_frame_time = new_frame_time 
+
+    fps = int(fps) 
+    fps = str(fps) 
+
+    # putting the FPS count on the frame 
+    cv2.putText(frame, fps, (7, 70),cv2.FONT_HERSHEY_SIMPLEX,2,(0, 0, 255),5)
+
+    return last_frame_time
 
 def process_video(videoCapture):
     """
@@ -480,7 +504,7 @@ def process_video(videoCapture):
     frameForMask = []
 
     # extract frame to create the mask
-    for i in range(FRAME_FOR_MASK_CREATION):
+    for _ in range(FRAME_FOR_MASK_CREATION):
         ret, frame = videoCapture.read()
         if ret != False:
             frameForMask.append(frame)
@@ -494,6 +518,8 @@ def process_video(videoCapture):
         # set the counting line position
         global COUNT_LINE_YPOS
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
+
+    last_frame_time = 0
 
     while True:
         ret, frame = videoCapture.read()
@@ -531,6 +557,9 @@ def process_video(videoCapture):
             prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
         )
         frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
+
+        last_frame_time = calculateFps(last_frame_time, frame_with_flow)
+
         cv2.imshow("Vehicles flows", frame_with_flow)
         prev_gray = gray_frame
         if cv2.waitKey(1) & 0xFF == ord("q"):
