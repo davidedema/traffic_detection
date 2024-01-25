@@ -2,6 +2,9 @@ import numpy as np
 import cv2
 import os
 import time
+import socket
+import pickle
+import struct
 
 PATH = os.path.dirname(os.path.abspath(__file__))
 VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
@@ -12,6 +15,32 @@ CONTOUR_HEIGHT = (70, 300)
 OFFSET_FOR_DETECTION = 8
 
 FRAME_FOR_MASK_CREATION = 5
+
+def setupSocket() -> socket.socket:
+    """
+    Setup the socket to wait for a client to stream the video
+
+    Returns:
+        client_socket (socket.socket): the client socket
+    """
+    # Socket Create
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    host_ip = socket.gethostbyname('localhost')
+    print('HOST IP:', host_ip)
+    port = 65432
+    socket_address = (host_ip, port)
+
+    # Socket Bind
+    server_socket.bind(socket_address)
+
+    # Socket Listen
+    server_socket.listen(5)
+    print("LISTENING AT:", socket_address)
+
+    client_socket, addr = server_socket.accept()
+    print('GOT CONNECTION FROM:', addr)
+
+    return client_socket
 
 
 def extend_line(line, imageWidth):
@@ -521,6 +550,11 @@ def process_video(videoCapture):
 
     last_frame_time = 0
 
+    client_socket = setupSocket()
+
+    if not client_socket:
+        return
+    
     while True:
         ret, frame = videoCapture.read()
         if ret == False:
@@ -557,6 +591,11 @@ def process_video(videoCapture):
             prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
         )
         frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
+
+        # send the frame to the client
+        a = pickle.dumps(frame_with_flow)
+        message = struct.pack("Q", len(a)) + a
+        client_socket.sendall(message)
 
         last_frame_time = calculateFps(last_frame_time, frame_with_flow)
 
