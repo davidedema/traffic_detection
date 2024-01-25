@@ -12,12 +12,25 @@ OFFSET_FOR_DETECTION = 8
 
 FRAME_FOR_MASK_CREATION = 5
 
+
 def extend_line(line, imageWidth):
     """
     Extend a line across the entire image while maintaining its direction.
+    
+    Args:
+        line (tuple): the line
+        imageWidth (int): the image width
+    
+    Returns:
+        extended_x1 (int): the x coordinate of the first point of the extended line
+        extended_y1 (int): the y coordinate of the first point of the extended line
+        extended_x2 (int): the x coordinate of the second point of the extended line
+        extended_y2 (int): the y coordinate of the second point of the extended line
     """
     x1, y1, x2, y2 = line
-    slope = (y2 - y1) / (x2 - x1 + 1e-5)  # Adding a small value to avoid division by zero
+    slope = (y2 - y1) / (
+        x2 - x1 + 1e-5
+    )  # Adding a small value to avoid division by zero
 
     # Extend the line to the image borders
     extended_x1 = 0
@@ -28,10 +41,19 @@ def extend_line(line, imageWidth):
 
     return extended_x1, extended_y1, extended_x2, extended_y2
 
+
 def find_intersection_point(line1, line2):
     """
     Find the intersection point between two lines defined by their coordinates.
     Each line is represented by two points (x1, y1), (x2, y2).
+    
+    Args:
+        line1 (tuple): the first line
+        line2 (tuple): the second line
+        
+    Returns:
+        x_intersect (float): the x coordinate of the intersection point
+        y_intersect (float): the y coordinate of the intersection point
     """
     x1, y1, x2, y2 = line1
     x3, y3, x4, y4 = line2
@@ -49,71 +71,102 @@ def find_intersection_point(line1, line2):
 
     return x_intersect, y_intersect
 
-def cropStreet(frames):
+
+def cropStreet(frames) -> np.ndarray:
     """
     Create a mask for cropping the street
+    
+    Args:
+        frames (list): a list of frames
+    
+    Returns:
+        mask (np.ndarray): the mask
     """
     for frame in frames:
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Reshaping the image into a 2D array of pixels and 3 color values (RGB) 
-        pixel_values = image.reshape(-1,3)
+        # Reshaping the image into a 2D array of pixels and 3 color values (RGB)
+        pixel_values = image.reshape(-1, 3)
 
         # Convert to float type to apply kmeans algorithm
         pixel_values = np.float32(pixel_values)
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
         k = 3
-        retval, labels, centers = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        retval, labels, centers = cv2.kmeans(
+            pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
+        )
 
-        #Segmenting the original image with kmeans results
+        # Segmenting the original image with kmeans results
         centers = np.uint8(centers)
         segmented_data = centers[labels.flatten()]
         segmented_image = segmented_data.reshape((image.shape))
 
         edges = cv2.Canny(segmented_image, 50, 150, apertureSize=3)
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 30, minLineLength=200, maxLineGap=5)
+        lines = cv2.HoughLinesP(
+            edges, 1, np.pi / 180, 30, minLineLength=200, maxLineGap=5
+        )
         if lines is None:
             print("No lines detected")
             return segmented_image
-        
-        lines = lines.reshape(-1,4) # remove redundant dimensions
-        validLines = ([],[])
 
+        lines = lines.reshape(-1, 4)  # remove redundant dimensions
+        validLines = ([], [])
 
         for line in lines:
-
             extended_line = extend_line(line, image.shape[1])
             x1, y1, x2, y2 = extended_line
 
-            #discard lines mostly horizontal or vertical
-            slope = (y2 - y1) / (x2 - x1 + 1e-5) # avoid division by zero
+            # discard lines mostly horizontal or vertical
+            slope = (y2 - y1) / (x2 - x1 + 1e-5)  # avoid division by zero
             if abs(slope) < 0.2 or abs(slope) > 2.0:
                 continue
 
-            if y1 > y2:        # left line
+            if y1 > y2:  # left line
                 validLines[0].append(extended_line)
-            else:               # right line
+            else:  # right line
                 validLines[1].append(extended_line)
 
-    leftmostLine = (0,0,0,0)
-    rightmostLine = (0,0,0,0)
+    leftmostLine = (0, 0, 0, 0)
+    rightmostLine = (0, 0, 0, 0)
 
-    if len(validLines[0]) > 0:  
+    if len(validLines[0]) > 0:
         leftmostLine = min(validLines[0], key=lambda x: x[0])
-    if len(validLines[1]) > 0:  
+    if len(validLines[1]) > 0:
         rightmostLine = max(validLines[1], key=lambda x: x[0])
 
-    #draw the lines
-    cv2.line(segmented_image, (leftmostLine[0], leftmostLine[1]), (leftmostLine[2], leftmostLine[3]), (255, 0, 0), 3)
-    cv2.line(segmented_image, (rightmostLine[0], rightmostLine[1]), (rightmostLine[2], rightmostLine[3]), (255, 255, 0), 3)
-    cv2.imshow("segmented image", segmented_image)
+    # draw the lines
+    cv2.line(
+        segmented_image,
+        (leftmostLine[0], leftmostLine[1]),
+        (leftmostLine[2], leftmostLine[3]),
+        (255, 0, 0),
+        3,
+    )
+    cv2.line(
+        segmented_image,
+        (rightmostLine[0], rightmostLine[1]),
+        (rightmostLine[2], rightmostLine[3]),
+        (255, 255, 0),
+        3,
+    )
     intersectingPoint = find_intersection_point(leftmostLine, rightmostLine)
-    
+
     # create a mask to crop the street
     bottomLeft = (0, image.shape[0])
     bottomRight = (image.shape[1], image.shape[0])
     mask = np.zeros(frame.shape, dtype=np.uint8)
-    roi_corners = np.array([[bottomLeft, (leftmostLine[0], leftmostLine[1]), intersectingPoint, (rightmostLine[2], rightmostLine[3]), bottomRight]], dtype=np.int32)
+    roi_corners = np.array(
+        [
+            [
+                bottomLeft,
+                (leftmostLine[0], leftmostLine[1]),
+                intersectingPoint,
+                (rightmostLine[2], rightmostLine[3]),
+                bottomRight,
+            ]
+        ],
+        dtype=np.int32,
+    )
     channel_count = frame.shape[2]
     ignore_mask_color = (255,) * channel_count
     cv2.fillPoly(mask, roi_corners, ignore_mask_color)
@@ -124,6 +177,13 @@ def cropStreet(frames):
 def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
     """
     Extract background and filter a frame
+    
+    Args:
+        frame (np.ndarray): the frame
+        bg_subtractor (cv2.BackgroundSubtractor): the background subtractor
+    
+    Returns:
+        dilated (np.ndarray): the filtered frame
     """
 
     greyFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -139,11 +199,16 @@ def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
     return dilated
 
 
-# TODO - improve this function
-
 def filterAndUnifyLines(lines, boundingBoxes):
     """
     Filter lines that are inside bounding boxes and return a single average of all of them for each box
+    
+    Args:
+        lines (np.ndarray): the lines
+        boundingBoxes (list): a list of bounding boxes
+        
+    Returns:
+        filteredLines (np.ndarray): the filtered lines  
     """
 
     linesInBoundingBoxes = {}
@@ -179,8 +244,15 @@ def filterAndUnifyLines(lines, boundingBoxes):
 def scale_vector(p1, p2, scaling_factor):
     """
     Scale a vector defined by two points (p1 and p2) by a scaling factor.
+    
+    Args:
+        p1 (tuple): the first point
+        p2 (tuple): the second point
+        scaling_factor (int): the scaling factor
+        
     Returns:
-    - Tuple representing the coordinates of the new endpoint after scaling.
+        new_x (int): the new x coordinate
+        new_y (int): the new y coordinate
     """
     x1, y1 = p1
     x2, y2 = p2
@@ -193,6 +265,16 @@ def scale_vector(p1, p2, scaling_factor):
 def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
     """
     Draw the optical flow vectors on the given image.
+    
+    Args:
+        img (np.ndarray): the image
+        img_bgr (np.ndarray): the image in BGR format
+        flow (np.ndarray): the optical flow
+        boundingBoxes (list): a list of bounding boxes
+        step (int): the step for the lines
+        
+    Returns:
+        img_bgr (np.ndarray): the image with the optical flow vectors
     """
 
     h, w = img.shape[:2]
@@ -218,6 +300,16 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
 def centerCoordinates(x, y, w, h) -> tuple:
     """
     Calculate center coordinates of a bounding box
+    
+    Args:
+        x (int): x coordinate of the bounding box
+        y (int): y coordinate of the bounding box
+        w (int): width of the bounding box
+        h (int): height of the bounding box
+        
+    Returns:
+        cx (int): x coordinate of the center
+        cy (int): y coordinate of the center
     """
 
     x1 = int(w / 2)
@@ -232,6 +324,14 @@ def centerCoordinates(x, y, w, h) -> tuple:
 def drawBoundingBoxes(contours, frame) -> list:
     """
     Draw bounding boxes around detected vehicles and return their center coordinates
+    
+    Args:
+        contours (list): a list of contours
+        frame (np.ndarray): the frame
+        
+    Returns:
+        detectedVehicles (list): a list of detected vehicles
+        boundingBoxes (list): a list of bounding boxes
     """
 
     detectedVehicles = []
@@ -239,11 +339,17 @@ def drawBoundingBoxes(contours, frame) -> list:
 
     for c in contours:
         (x, y, w, h) = cv2.boundingRect(c)
-        contour_valid = (w >= CONTOUR_WIDTH[0]) and (h >= CONTOUR_HEIGHT[0]) and (w <= CONTOUR_WIDTH[1]) and (h <= CONTOUR_HEIGHT[1])
+        contour_valid = (
+            (w >= CONTOUR_WIDTH[0])
+            and (h >= CONTOUR_HEIGHT[0])
+            and (w <= CONTOUR_WIDTH[1])
+            and (h <= CONTOUR_HEIGHT[1])
+        )
 
         if not contour_valid:
-            continue        
-
+            continue
+        
+        # draw bounding boxes
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         boundingBoxes.append((x, y, w, h))
 
@@ -258,12 +364,26 @@ def drawBoundingBoxes(contours, frame) -> list:
 def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
     """
     Count vehicles that cross the counting line with a margin of error
+    
+    Args:
+        frame (np.ndarray): the frame
+        detectedVehicles (list): a list of detected vehicles
+        vehicleCounter (int): the vehicle counter
+        
+    Returns:
+        vehicleCounter (int): the vehicle counter
     """
 
     for x, y in detectedVehicles:
-        if ((COUNT_LINE_YPOS - OFFSET_FOR_DETECTION) <= y <= (COUNT_LINE_YPOS + OFFSET_FOR_DETECTION)):
+        if (
+            (COUNT_LINE_YPOS - OFFSET_FOR_DETECTION)
+            <= y
+            <= (COUNT_LINE_YPOS + OFFSET_FOR_DETECTION)
+        ):
             vehicleCounter += 1
-            cv2.line(frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (0, 127, 255), 3)
+            cv2.line(
+                frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (0, 127, 255), 3
+            )
             detectedVehicles.remove((x, y))
 
             print(f"Vehicle detected: {vehicleCounter}")
@@ -271,29 +391,107 @@ def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
     return vehicleCounter
 
 
+def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
+    """Detect the vehicles class (car or truck) and print it on the frame
+
+    Args:
+        filteredImage (np.ndarray): the filtered image
+        frame (np.ndarray): the frame
+        boundingBoxes (list): a list of bounding boxes
+
+    Returns:
+        frame (np.ndarray): the frame with the labels
+    """
+
+    # crop image on the bounding boxes
+    for i, (x, y, w, h) in enumerate(boundingBoxes):
+        crop = filteredImage[y : y + h, x : x + w]
+        # count white pixels
+        whitePixels = cv2.countNonZero(crop)
+
+        # calculate the percentage of white pixels
+        percentage = whitePixels / (w * h)
+        boundingBoxSize = w * h
+
+        score = calculateScore(percentage, boundingBoxSize)
+
+        # put the label on the frame
+        if score > 0.5:
+            cv2.putText(
+                frame,
+                "Truck",
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (36, 255, 12),
+                2,
+            )
+        else:
+            cv2.putText(
+                frame,
+                "Car",
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (36, 255, 12),
+                2,
+            )
+
+    return frame
+
+
+def calculateScore(percentage_white_pixels, bounding_box_size)-> float:
+    """
+    Calculate a score based on the percentage of white pixels and the bounding box size
+    
+    Args:
+        percentage_white_pixels (float): the percentage of white pixels
+        bounding_box_size (int): the bounding box size
+    
+    Returns:
+        score (float): the score
+    """ 
+    # Define maximum bounding box size (not precise)
+    max_bounding_box_size = 20000
+    # Define weights for combining normalized percentage and size
+    weight_percentage = 0.7
+    weight_size = 0.3
+
+    # Normalize the values to ensure they are on a similar scale
+    normalized_percentage = percentage_white_pixels / 100.0  # Normalize to [0, 1]
+    normalized_size = bounding_box_size / max_bounding_box_size  # Normalize to [0, 1]
+
+    # Combine normalized percentage and size using weighted sum
+    score = (weight_percentage * normalized_percentage) + (
+        weight_size * normalized_size
+    )
+
+    return score
+
+
 def process_video(videoCapture):
     """
-    Process video frame by frame and detect vehicles counting them
+    Process video frame by frame displaying the results
     """
-
+    
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
-    
-    maskFrameCounter = 0
+
     frameForMask = []
 
-    #extract frame to create the mask
+    # extract frame to create the mask
     for i in range(FRAME_FOR_MASK_CREATION):
         ret, frame = videoCapture.read()
         if ret != False:
             frameForMask.append(frame)
 
     ret, frame = videoCapture.read()
-    
+
     if ret:
         mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
+        
+        # set the counting line position
         global COUNT_LINE_YPOS
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
 
@@ -304,16 +502,21 @@ def process_video(videoCapture):
 
         masked_frame = cv2.bitwise_and(frame, mask)
         gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
-        cv2.imshow("Masked frame", masked_frame)
 
         filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
-        contours, _ = cv2.findContours(filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
         detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
 
         vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
 
+        frame = detectVehiclesClass(filteredImage, frame, boundingBoxes)
+
         # draw counting line and counter
-        cv2.line(frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (255, 127, 0), 3)
+        cv2.line(
+            frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (255, 127, 0), 3
+        )
         cv2.putText(
             frame,
             "Vehicle detected: " + str(vehicleCounter),
