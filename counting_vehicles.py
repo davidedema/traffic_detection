@@ -7,7 +7,7 @@ import pickle
 import struct
 
 PATH = os.path.dirname(os.path.abspath(__file__))
-VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
+VIDEO_PATH = os.path.join(PATH, "assets", "video4.mp4")
 
 COUNT_LINE_YPOS = 0
 CONTOUR_WIDTH = (70, 300)
@@ -43,7 +43,7 @@ def setupSocket() -> socket.socket:
     return client_socket
 
 
-def extend_line(line, imageWidth):
+def extend_line(line, imageWidth)-> tuple[int, int, int, int]:
     """
     Extend a line across the entire image while maintaining its direction.
 
@@ -72,7 +72,7 @@ def extend_line(line, imageWidth):
     return extended_x1, extended_y1, extended_x2, extended_y2
 
 
-def find_intersection_point(line1, line2):
+def find_intersection_point(line1, line2)-> tuple[float, float]:
     """
     Find the intersection point between two lines defined by their coordinates.
     Each line is represented by two points (x1, y1), (x2, y2).
@@ -303,8 +303,6 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
         boundingBoxes (list): a list of bounding boxes
         step (int): the step for the lines
 
-    Returns:
-        img_bgr (np.ndarray): the image with the optical flow vectors
     """
 
     h, w = img.shape[:2]
@@ -324,7 +322,6 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
             img_bgr, start_point, end_point_rescaled, (0, 255, 0), 2, tipLength=0.3
         )
 
-    return img_bgr
 
 
 def centerCoordinates(x, y, w, h) -> tuple:
@@ -429,8 +426,6 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
         frame (np.ndarray): the frame
         boundingBoxes (list): a list of bounding boxes
 
-    Returns:
-        frame (np.ndarray): the frame with the labels
     """
 
     # crop image on the bounding boxes
@@ -466,8 +461,6 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
                 (36, 255, 12),
                 2,
             )
-
-    return frame
 
 
 def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
@@ -527,6 +520,8 @@ def process_video(videoCapture):
     Process video frame by frame displaying the results
     """
 
+    fps = videoCapture.get(cv2.CAP_PROP_FPS)
+
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
 
@@ -549,7 +544,6 @@ def process_video(videoCapture):
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
 
     last_frame_time = 0
-
     client_socket = setupSocket()
 
     if not client_socket:
@@ -571,7 +565,7 @@ def process_video(videoCapture):
 
         vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
 
-        frame = detectVehiclesClass(filteredImage, frame, boundingBoxes)
+        detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
         # draw counter
         cv2.putText(
@@ -584,26 +578,29 @@ def process_video(videoCapture):
             5,
         )
 
-        flow = cv2.calcOpticalFlowFarneback(
-            prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
-        )
-        frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
-
+        # flow = cv2.calcOpticalFlowFarneback(
+        #     prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
+        # )
+        # draw_flow(gray_frame, frame, flow, boundingBoxes)
+        # prev_gray = gray_frame
+        
         # send the frame to the client
-        a = pickle.dumps(frame_with_flow)
+        a = pickle.dumps(frame)
         message = struct.pack("Q", len(a)) + a
         client_socket.sendall(message)
 
-        last_frame_time = calculateFps(last_frame_time, frame_with_flow)
+        last_frame_time = calculateFps(last_frame_time, frame)
 
-        cv2.imshow("Vehicles flows", frame_with_flow)
-        prev_gray = gray_frame
+        cv2.imshow("Vehicles flows", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
 
 def main():
     videoCapture = cv2.VideoCapture(VIDEO_PATH)
+    print("Expected frame rate:", videoCapture.get(cv2.CAP_PROP_FPS))
+    print("Frame width:", videoCapture.get(cv2.CAP_PROP_BITRATE))
+    print("Frame number:", videoCapture.get(cv2.CAP_PROP_FRAME_COUNT))
     process_video(videoCapture)
 
 
