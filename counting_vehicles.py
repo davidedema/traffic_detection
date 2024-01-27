@@ -7,7 +7,7 @@ import pickle
 import struct
 
 PATH = os.path.dirname(os.path.abspath(__file__))
-VIDEO_PATH = os.path.join(PATH, "assets", "video4.mp4")
+VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
 
 COUNT_LINE_YPOS = 0
 CONTOUR_WIDTH = (70, 300)
@@ -15,6 +15,7 @@ CONTOUR_HEIGHT = (70, 300)
 OFFSET_FOR_DETECTION = 8
 
 FRAME_FOR_MASK_CREATION = 5
+BATCH_SIZE = 3
 
 def setupSocket() -> socket.socket:
     """
@@ -25,7 +26,7 @@ def setupSocket() -> socket.socket:
     """
     # Socket Create
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    host_ip = socket.gethostbyname('localhost')
+    host_ip = '127.0.0.1'
     print('HOST IP:', host_ip)
     port = 65432
     socket_address = (host_ip, port)
@@ -491,29 +492,33 @@ def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
 
     return score
 
-def calculateFps(last_frame_time, frame) -> int:
+def send_batch(frames, client_socket):
+    # Serialize and send multiple frames in a batch    
+    data = pickle.dumps(frames)
+    message = struct.pack("Q", len(data)) + data
+    client_socket.sendall(message)
+
+def calculateFps(last_frame_time, framesNumber) -> tuple[float, str]:
     """
     Calculate the fps and put it on the frame
 
     Args:
         prev_frame_time (float): the previous frame time
-        frame (np.ndarray): the frame to put the fps on
+        framesNumber (int): the number of frames to calculate the fps
 
     Returns:
         last_frame_time (float): the last frame time
+        fps (str): the fps
     """
 
     new_frame_time = time.time()
-    fps = 1/(new_frame_time-last_frame_time) 
+    fps = framesNumber/(new_frame_time-last_frame_time) 
     last_frame_time = new_frame_time 
 
     fps = int(fps) 
-    fps = str(fps) 
+    fps = str(fps)
 
-    # putting the FPS count on the frame 
-    cv2.putText(frame, fps, (7, 70),cv2.FONT_HERSHEY_SIMPLEX,2,(0, 0, 255),5)
-
-    return last_frame_time
+    return last_frame_time, fps
 
 def process_video(videoCapture):
     """
@@ -526,6 +531,7 @@ def process_video(videoCapture):
     vehicleCounter = 0
 
     frameForMask = []
+    framesSent = 0
 
     # extract frame to create the mask
     for _ in range(FRAME_FOR_MASK_CREATION):
@@ -549,34 +555,36 @@ def process_video(videoCapture):
     if not client_socket:
         return
     
+    framesToSend = []
+    
     while True:
         ret, frame = videoCapture.read()
         if ret == False:
             break
 
-        masked_frame = cv2.bitwise_and(frame, mask)
-        gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
+        # masked_frame = cv2.bitwise_and(frame, mask)
+        # gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
 
-        filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
-        contours, _ = cv2.findContours(
-            filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-        )
-        detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
+        # filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
+        # contours, _ = cv2.findContours(
+        #     filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        # )
+        # detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
 
-        vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
+        # vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
 
-        detectVehiclesClass(filteredImage, frame, boundingBoxes)
+        # detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
-        # draw counter
-        cv2.putText(
-            frame,
-            "Vehicle detected: " + str(vehicleCounter),
-            (70, 70),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            2,
-            (0, 0, 255),
-            5,
-        )
+        # # draw counter
+        # cv2.putText(
+        #     frame,
+        #     "Vehicle detected: " + str(vehicleCounter),
+        #     (70, 70),
+        #     cv2.FONT_HERSHEY_SIMPLEX,
+        #     2,
+        #     (0, 0, 255),
+        #     5,
+        # )
 
         # flow = cv2.calcOpticalFlowFarneback(
         #     prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
@@ -585,21 +593,26 @@ def process_video(videoCapture):
         # prev_gray = gray_frame
         
         # send the frame to the client
-        a = pickle.dumps(frame)
-        message = struct.pack("Q", len(a)) + a
-        client_socket.sendall(message)
+        framesToSend.append(frame)
+        if len(framesToSend) == BATCH_SIZE:
+            send_batch(framesToSend, client_socket)
+            framesSent += BATCH_SIZE
+            framesToSend = []
 
-        last_frame_time = calculateFps(last_frame_time, frame)
+        if framesSent % 50 == 0:
+            last_frame_time, currentFps = calculateFps(last_frame_time,50)
+            print(f"Current FPS:{currentFps}")
 
         cv2.imshow("Vehicles flows", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
+            client_socket.close()
             break
+    client_socket.close()
 
 
 def main():
     videoCapture = cv2.VideoCapture(VIDEO_PATH)
     print("Expected frame rate:", videoCapture.get(cv2.CAP_PROP_FPS))
-    print("Frame width:", videoCapture.get(cv2.CAP_PROP_BITRATE))
     print("Frame number:", videoCapture.get(cv2.CAP_PROP_FRAME_COUNT))
     process_video(videoCapture)
 
