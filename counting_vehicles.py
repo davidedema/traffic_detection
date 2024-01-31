@@ -2,46 +2,15 @@ import numpy as np
 import cv2
 import os
 import time
-import socket
-import pickle
-import struct
 
-PATH = os.path.dirname(os.path.abspath(__file__))
-VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
+VIDEO_PATH = os.path.join("assets", "video.mp4")
 
 COUNT_LINE_YPOS = 0
 CONTOUR_WIDTH = (70, 300)
 CONTOUR_HEIGHT = (70, 300)
-OFFSET_FOR_DETECTION = 8
+OFFSET_FOR_DETECTION = 7
 
 FRAME_FOR_MASK_CREATION = 5
-BATCH_SIZE = 3
-
-def setupSocket() -> socket.socket:
-    """
-    Setup the socket to wait for a client to stream the video
-
-    Returns:
-        client_socket (socket.socket): the client socket
-    """
-    # Socket Create
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    host_ip = '127.0.0.1'
-    print('HOST IP:', host_ip)
-    port = 65432
-    socket_address = (host_ip, port)
-
-    # Socket Bind
-    server_socket.bind(socket_address)
-
-    # Socket Listen
-    server_socket.listen(5)
-    print("LISTENING AT:", socket_address)
-
-    client_socket, addr = server_socket.accept()
-    print('GOT CONNECTION FROM:', addr)
-
-    return client_socket
 
 
 def extend_line(line, imageWidth)-> tuple[int, int, int, int]:
@@ -203,7 +172,6 @@ def cropStreet(frames) -> np.ndarray:
     cv2.fillPoly(mask, roi_corners, ignore_mask_color)
 
     return mask
-
 
 def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
     """
@@ -389,7 +357,7 @@ def drawBoundingBoxes(contours, frame) -> list:
     return detectedVehicles, boundingBoxes
 
 
-def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
+def countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos=COUNT_LINE_YPOS) -> int:
     """
     Count vehicles that cross the counting line with a margin of error
 
@@ -404,13 +372,13 @@ def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
 
     for x, y in detectedVehicles:
         if (
-            (COUNT_LINE_YPOS - OFFSET_FOR_DETECTION)
+            (count_line_y_pos - OFFSET_FOR_DETECTION)
             <= y
-            <= (COUNT_LINE_YPOS + OFFSET_FOR_DETECTION)
+            <= (count_line_y_pos + OFFSET_FOR_DETECTION)
         ):
             vehicleCounter += 1
             cv2.line(
-                frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (0, 127, 255), 3
+                frame, (25, count_line_y_pos), (1200, count_line_y_pos), (0, 127, 255), 3
             )
             detectedVehicles.remove((x, y))
 
@@ -462,6 +430,7 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
                 (36, 255, 12),
                 2,
             )
+    return frame
 
 
 def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
@@ -492,12 +461,6 @@ def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
 
     return score
 
-def send_batch(frames, client_socket):
-    # Serialize and send multiple frames in a batch    
-    data = pickle.dumps(frames)
-    message = struct.pack("Q", len(data)) + data
-    client_socket.sendall(message)
-
 def calculateFps(last_frame_time, framesNumber) -> tuple[float, str]:
     """
     Calculate the fps and put it on the frame
@@ -526,88 +489,71 @@ def process_video(videoCapture):
     """
 
     fps = videoCapture.get(cv2.CAP_PROP_FPS)
-
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
-
-    frameForMask = []
-    framesSent = 0
-
+    
     # extract frame to create the mask
+    frameForMask = []    
     for _ in range(FRAME_FOR_MASK_CREATION):
         ret, frame = videoCapture.read()
         if ret != False:
             frameForMask.append(frame)
 
+    # extract the mask and set the counting line position
     ret, frame = videoCapture.read()
-
     if ret:
         mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
         # set the counting line position
         global COUNT_LINE_YPOS
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
 
     last_frame_time = 0
-    client_socket = setupSocket()
-
-    if not client_socket:
-        return
-    
-    framesToSend = []
+    framesSent = 0
     
     while True:
         ret, frame = videoCapture.read()
         if ret == False:
             break
 
-        # masked_frame = cv2.bitwise_and(frame, mask)
-        # gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
+        masked_frame = cv2.bitwise_and(frame, mask)
+        gray_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
 
-        # filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
-        # contours, _ = cv2.findContours(
-        #     filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-        # )
-        # detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
+        filteredImage = extractBgAndFilter(masked_frame, bg_subtractor)
+        contours, _ = cv2.findContours(
+            filteredImage, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
+        detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
 
-        # vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
+        vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
 
-        # detectVehiclesClass(filteredImage, frame, boundingBoxes)
+        detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
-        # # draw counter
-        # cv2.putText(
-        #     frame,
-        #     "Vehicle detected: " + str(vehicleCounter),
-        #     (70, 70),
-        #     cv2.FONT_HERSHEY_SIMPLEX,
-        #     2,
-        #     (0, 0, 255),
-        #     5,
-        # )
+        # draw counter
+        cv2.putText(
+            frame,
+            "Vehicle detected: " + str(vehicleCounter),
+            (70, 70),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            2,
+            (0, 0, 255),
+            5,
+        )
 
         # flow = cv2.calcOpticalFlowFarneback(
         #     prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
         # )
         # draw_flow(gray_frame, frame, flow, boundingBoxes)
         # prev_gray = gray_frame
-        
-        # send the frame to the client
-        framesToSend.append(frame)
-        if len(framesToSend) == BATCH_SIZE:
-            send_batch(framesToSend, client_socket)
-            framesSent += BATCH_SIZE
-            framesToSend = []
+
 
         if framesSent % 50 == 0:
             last_frame_time, currentFps = calculateFps(last_frame_time,50)
             print(f"Current FPS:{currentFps}")
-
+        framesSent += 1
         cv2.imshow("Vehicles flows", frame)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            client_socket.close()
+        if cv2.waitKey(int(1000/fps)) & 0xFF == ord("q"):
             break
-    client_socket.close()
 
 
 def main():
