@@ -3,7 +3,7 @@ import cv2
 import os
 import time
 
-VIDEO_PATH = os.path.join("assets", "video.mp4")
+VIDEO_PATH = os.path.join("assets", "video1.mp4")
 
 COUNT_LINE_YPOS = 0
 CONTOUR_WIDTH = (70, 300)

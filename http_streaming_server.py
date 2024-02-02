@@ -111,7 +111,7 @@ def video(video_name, frame_rate):
 
 @app.route('/stream_video')
 def vlc_stream():
-    return Response(process_video("assets/video.mp4", 30), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(process_video("assets/video1.mp4", 30), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 if __name__ == '__main__':
