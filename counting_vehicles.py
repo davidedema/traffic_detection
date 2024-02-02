@@ -103,7 +103,7 @@ def cropStreet(frames) -> np.ndarray:
 
         edges = cv2.Canny(segmented_image, 50, 150, apertureSize=3)
         lines = cv2.HoughLinesP(
-            edges, 1, np.pi / 180, 30, minLineLength=200, maxLineGap=5
+            edges, 1, np.pi / 180, 30, minLineLength=150, maxLineGap=5
         )
         if lines is None:
             print("No lines detected")
