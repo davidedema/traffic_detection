@@ -1,19 +1,19 @@
 import numpy as np
 import cv2
 import os
+import time
 
-PATH = os.path.dirname(os.path.abspath(__file__))
-VIDEO_PATH = os.path.join(PATH, "assets", "video.mp4")
+VIDEO_PATH = os.path.join("assets", "video.mp4")
 
 COUNT_LINE_YPOS = 0
 CONTOUR_WIDTH = (70, 300)
 CONTOUR_HEIGHT = (70, 300)
-OFFSET_FOR_DETECTION = 8
+OFFSET_FOR_DETECTION = 7
 
 FRAME_FOR_MASK_CREATION = 5
 
 
-def extend_line(line, imageWidth):
+def extend_line(line, imageWidth)-> tuple[int, int, int, int]:
     """
     Extend a line across the entire image while maintaining its direction.
 
@@ -42,7 +42,7 @@ def extend_line(line, imageWidth):
     return extended_x1, extended_y1, extended_x2, extended_y2
 
 
-def find_intersection_point(line1, line2):
+def find_intersection_point(line1, line2)-> tuple[float, float]:
     """
     Find the intersection point between two lines defined by their coordinates.
     Each line is represented by two points (x1, y1), (x2, y2).
@@ -173,7 +173,6 @@ def cropStreet(frames) -> np.ndarray:
 
     return mask
 
-
 def extractBgAndFilter(frame, bg_subtractor) -> np.ndarray:
     """
     Extract background and filter a frame
@@ -273,8 +272,6 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
         boundingBoxes (list): a list of bounding boxes
         step (int): the step for the lines
 
-    Returns:
-        img_bgr (np.ndarray): the image with the optical flow vectors
     """
 
     h, w = img.shape[:2]
@@ -294,7 +291,6 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
             img_bgr, start_point, end_point_rescaled, (0, 255, 0), 2, tipLength=0.3
         )
 
-    return img_bgr
 
 
 def centerCoordinates(x, y, w, h) -> tuple:
@@ -361,7 +357,7 @@ def drawBoundingBoxes(contours, frame) -> list:
     return detectedVehicles, boundingBoxes
 
 
-def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
+def countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos=COUNT_LINE_YPOS) -> int:
     """
     Count vehicles that cross the counting line with a margin of error
 
@@ -376,13 +372,13 @@ def countVehicles(frame, detectedVehicles, vehicleCounter) -> int:
 
     for x, y in detectedVehicles:
         if (
-            (COUNT_LINE_YPOS - OFFSET_FOR_DETECTION)
+            (count_line_y_pos - OFFSET_FOR_DETECTION)
             <= y
-            <= (COUNT_LINE_YPOS + OFFSET_FOR_DETECTION)
+            <= (count_line_y_pos + OFFSET_FOR_DETECTION)
         ):
             vehicleCounter += 1
             cv2.line(
-                frame, (25, COUNT_LINE_YPOS), (1200, COUNT_LINE_YPOS), (0, 127, 255), 3
+                frame, (25, count_line_y_pos), (1200, count_line_y_pos), (0, 127, 255), 3
             )
             detectedVehicles.remove((x, y))
 
@@ -399,8 +395,6 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
         frame (np.ndarray): the frame
         boundingBoxes (list): a list of bounding boxes
 
-    Returns:
-        frame (np.ndarray): the frame with the labels
     """
 
     # crop image on the bounding boxes
@@ -436,7 +430,6 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
                 (36, 255, 12),
                 2,
             )
-
     return frame
 
 
@@ -468,33 +461,56 @@ def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
 
     return score
 
+def calculateFps(last_frame_time, framesNumber) -> tuple[float, str]:
+    """
+    Calculate the fps and put it on the frame
+
+    Args:
+        prev_frame_time (float): the previous frame time
+        framesNumber (int): the number of frames to calculate the fps
+
+    Returns:
+        last_frame_time (float): the last frame time
+        fps (str): the fps
+    """
+
+    new_frame_time = time.time()
+    fps = framesNumber/(new_frame_time-last_frame_time) 
+    last_frame_time = new_frame_time 
+
+    fps = int(fps) 
+    fps = str(fps)
+
+    return last_frame_time, fps
 
 def process_video(videoCapture):
     """
     Process video frame by frame displaying the results
     """
 
+    fps = videoCapture.get(cv2.CAP_PROP_FPS)
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
-
-    frameForMask = []
-
+    
     # extract frame to create the mask
-    for i in range(FRAME_FOR_MASK_CREATION):
+    frameForMask = []    
+    for _ in range(FRAME_FOR_MASK_CREATION):
         ret, frame = videoCapture.read()
         if ret != False:
             frameForMask.append(frame)
 
+    # extract the mask and set the counting line position
     ret, frame = videoCapture.read()
-
     if ret:
         mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
         # set the counting line position
         global COUNT_LINE_YPOS
         COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
 
+    last_frame_time = 0
+    framesSent = 0
+    
     while True:
         ret, frame = videoCapture.read()
         if ret == False:
@@ -511,7 +527,7 @@ def process_video(videoCapture):
 
         vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
 
-        frame = detectVehiclesClass(filteredImage, frame, boundingBoxes)
+        detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
         # draw counter
         cv2.putText(
@@ -524,18 +540,26 @@ def process_video(videoCapture):
             5,
         )
 
-        flow = cv2.calcOpticalFlowFarneback(
-            prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
-        )
-        frame_with_flow = draw_flow(gray_frame, frame, flow, boundingBoxes)
-        cv2.imshow("Vehicles flows", frame_with_flow)
-        prev_gray = gray_frame
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        # flow = cv2.calcOpticalFlowFarneback(
+        #     prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
+        # )
+        # draw_flow(gray_frame, frame, flow, boundingBoxes)
+        # prev_gray = gray_frame
+
+
+        if framesSent % 50 == 0:
+            last_frame_time, currentFps = calculateFps(last_frame_time,50)
+            print(f"Current FPS:{currentFps}")
+        framesSent += 1
+        cv2.imshow("Vehicles flows", frame)
+        if cv2.waitKey(int(1000/fps)) & 0xFF == ord("q"):
             break
 
 
 def main():
     videoCapture = cv2.VideoCapture(VIDEO_PATH)
+    print("Expected frame rate:", videoCapture.get(cv2.CAP_PROP_FPS))
+    print("Frame number:", videoCapture.get(cv2.CAP_PROP_FRAME_COUNT))
     process_video(videoCapture)
 
 

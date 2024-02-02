@@ -1,0 +1,18 @@
+<!-- templates/video_viewer.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Viewer</title>
+</head>
+<body>
+    <h2>Video Viewer</h2>
+    <p>Selected Video: {{ video_name }}</p>
+    <p>Selected Frame Rate: {{ frame_rate }}</p>
+    <div>
+        <img src="{{ url_for('video', video_name=video_name, frame_rate=frame_rate) }}" alt="Video Stream">
+    </div>
+</body>
+</html>

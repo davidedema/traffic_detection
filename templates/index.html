@@ -1,0 +1,50 @@
+<!-- templates/video.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream</title>
+</head>
+<body>
+
+    <h1>Simple HTTP streaming application</h1>
+
+    <form action="/watch_stream" method="POST">
+        <label for="video_name">Select Video Source:</label>
+        <select name="video_name" id="video_name" onchange="updateFrameRates()">
+            {% for video in video_captures %}
+                <option value="{{ video.name }}">{{ video.name }}</option>
+            {% endfor %}
+        </select>
+        <select name="frame_rate" id="frame_rate">
+            <option value="0">max</option>
+        </select>
+        <button type="submit">Watch Stream</button>
+    </form>
+
+    <script>
+        function updateFrameRates() {
+            var videoCaptureIndex = document.getElementById("video_name");
+            var frameRateSelect = document.getElementById("frame_rate");
+            var selectedVideo = videoCaptureIndex.value;
+
+            // Clear existing options
+            frameRateSelect.innerHTML = "";
+
+            // Add new options based on the selected video
+            {% for video in video_captures %}
+                if (selectedVideo === "{{ video.name }}") {
+                    {% for rate in video.frame_rates %}
+                        var option = document.createElement("option");
+                        option.value = "{{ rate }}";
+                        option.text = "{{ rate }}";
+                        frameRateSelect.appendChild(option);
+                    {% endfor %}
+                }
+            {% endfor %}
+        }
+    </script>
+</body>
+</html>
