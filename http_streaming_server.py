@@ -62,11 +62,11 @@ def process_video(video_capture_index, frame_rate="0"):
             5,
         )
 
-        flow = cv2.calcOpticalFlowFarneback(
-            prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
-        )
-        draw_flow(gray_frame, frame, flow, boundingBoxes)
-        prev_gray = gray_frame
+        # flow = cv2.calcOpticalFlowFarneback(
+        #     prev_gray, gray_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0
+        # )
+        # draw_flow(gray_frame, frame, flow, boundingBoxes)
+        # prev_gray = gray_frame
 
         _, buffer = cv2.imencode('.jpg', frame)
         frame_bytes = buffer.tobytes()
@@ -74,9 +74,7 @@ def process_video(video_capture_index, frame_rate="0"):
 
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n\r\n')
-        # cv2.imshow("Vehicles flows", frame)
-        # if cv2.waitKey(1) & 0xFF == ord("q"):
-        #     break
+
         if framesSent % 50 == 0:
             last_frame_time, currentFps = calculateFps(last_frame_time,50)
             print(f"Vehicle detected: {vehicleCounter}, Current FPS:{currentFps}")
@@ -111,7 +109,7 @@ def video(video_name, frame_rate):
 
     return Response(process_video(video_name, frame_rate), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route('/stream_webcam')
+@app.route('/stream_video')
 def vlc_stream():
     return Response(process_video("assets/video.mp4", 30), mimetype='multipart/x-mixed-replace; boundary=frame')
 
