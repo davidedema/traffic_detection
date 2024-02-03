@@ -39,6 +39,7 @@ Desktop/traffic_detection
 │   ├── video1.mp4
 │   ├── video2.mp4
 │   └── video3.mp4
+├── config.py
 ├── counting_vehicles.py
 ├── http_streaming_server.py
 ├── README.md
@@ -49,6 +50,7 @@ Desktop/traffic_detection
 └── templates
     ├── index.html
     └── video_viewer.html
+
 ```
 
 `http_streaming_server.py` is the file for starting the webserver. This will expose two API for the client to connect to the server and receive the video stream.
