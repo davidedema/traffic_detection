@@ -13,7 +13,7 @@ OFFSET_FOR_DETECTION = 7
 FRAME_FOR_MASK_CREATION = 5
 
 
-def extend_line(line, imageWidth)-> tuple[int, int, int, int]:
+def extend_line(line, imageWidth) -> tuple[int, int, int, int]:
     """
     Extend a line across the entire image while maintaining its direction.
 
@@ -42,7 +42,7 @@ def extend_line(line, imageWidth)-> tuple[int, int, int, int]:
     return extended_x1, extended_y1, extended_x2, extended_y2
 
 
-def find_intersection_point(line1, line2)-> tuple[float, float]:
+def find_intersection_point(line1, line2) -> tuple[float, float]:
     """
     Find the intersection point between two lines defined by their coordinates.
     Each line is represented by two points (x1, y1), (x2, y2).
@@ -99,7 +99,7 @@ def cropStreet(frames) -> np.ndarray:
         # Segmenting the original image with kmeans results
         centers = np.uint8(centers)
         segmented_data = centers[labels.flatten()]
-        segmented_image = segmented_data.reshape((image.shape))
+        segmented_image = segmented_data.reshape(image.shape)
 
         edges = cv2.Canny(segmented_image, 50, 150, apertureSize=3)
         lines = cv2.HoughLinesP(
@@ -240,7 +240,7 @@ def filterAndUnifyLines(lines, boundingBoxes) -> np.ndarray:
     return filteredLines
 
 
-def scale_vector(p1, p2, scaling_factor):
+def scale_vector(p1, p2, scaling_factor) -> tuple[int, int]:
     """
     Scale a vector defined by two points (p1 and p2) by a scaling factor.
 
@@ -293,7 +293,7 @@ def draw_flow(img, img_bgr, flow, boundingBoxes, step=16):
 
 
 
-def centerCoordinates(x, y, w, h) -> tuple:
+def centerCoordinates(x, y, w, h) -> tuple[int, int]:
     """
     Calculate center coordinates of a bounding box
 
@@ -317,9 +317,10 @@ def centerCoordinates(x, y, w, h) -> tuple:
     return cx, cy
 
 
-def drawBoundingBoxes(contours, frame) -> list:
+def drawBoundingBoxes(contours, frame) -> tuple[list, list]:
     """
-    Draw bounding boxes around detected vehicles and return their center coordinates
+    Draw bounding boxes around detected vehicles and return their center c
+    return frameoordinates
 
     Args:
         contours (list): a list of contours
@@ -357,7 +358,7 @@ def drawBoundingBoxes(contours, frame) -> list:
     return detectedVehicles, boundingBoxes
 
 
-def countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos=COUNT_LINE_YPOS) -> int:
+def countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos) -> int:
     """
     Count vehicles that cross the counting line with a margin of error
 
@@ -365,6 +366,7 @@ def countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos=COUN
         frame (np.ndarray): the frame
         detectedVehicles (list): a list of detected vehicles
         vehicleCounter (int): the vehicle counter
+        count_line_y_pos (int): position of the counting line
 
     Returns:
         vehicleCounter (int): the vehicle counter
@@ -387,7 +389,7 @@ def countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos=COUN
     return vehicleCounter
 
 
-def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
+def detectVehiclesClass(filteredImage, frame, boundingBoxes):
     """Detect the vehicles class (car or truck) and print it on the frame
 
     Args:
@@ -430,8 +432,6 @@ def detectVehiclesClass(filteredImage, frame, boundingBoxes) -> np.ndarray:
                 (36, 255, 12),
                 2,
             )
-    return frame
-
 
 def calculateScore(percentage_white_pixels, bounding_box_size) -> float:
     """
@@ -491,6 +491,7 @@ def process_video(videoCapture):
     fps = videoCapture.get(cv2.CAP_PROP_FPS)
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
+    count_line_ypos = 0
     
     # extract frame to create the mask
     frameForMask = []    
@@ -505,8 +506,7 @@ def process_video(videoCapture):
         mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # set the counting line position
-        global COUNT_LINE_YPOS
-        COUNT_LINE_YPOS = int((frame.shape[0] * 4 / 5))
+        count_line_ypos = int((frame.shape[0] * 4 / 5))
 
     last_frame_time = 0
     framesSent = 0
@@ -525,7 +525,7 @@ def process_video(videoCapture):
         )
         detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
 
-        vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter)
+        vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter, count_line_ypos)
 
         detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
@@ -548,7 +548,7 @@ def process_video(videoCapture):
 
 
         if framesSent % 50 == 0:
-            last_frame_time, currentFps = calculateFps(last_frame_time,50)
+            last_frame_time, currentFps = calculateFps(last_frame_time, 50)
             print(f"Current FPS:{currentFps}")
         framesSent += 1
         cv2.imshow("Vehicles flows", frame)

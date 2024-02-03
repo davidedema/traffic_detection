@@ -2,11 +2,11 @@ from flask import Flask, render_template, Response, request
 import cv2
 import os
 from counting_vehicles import *
+from config import config
 
 app = Flask(__name__)
 
 FRAME_FOR_MASK_CREATION = 5
-COUNT_LINE_YPOS = 0
 
 def process_video(video_capture_index, frame_rate="0"):
 
@@ -14,6 +14,7 @@ def process_video(video_capture_index, frame_rate="0"):
     fps = videoCapture.get(cv2.CAP_PROP_FPS)
     bg_subtractor = cv2.createBackgroundSubtractorKNN(history=100, detectShadows=False)
     vehicleCounter = 0
+    count_line_ypos = 0
     
     # extract frame to create the mask
     frameForMask = []    
@@ -28,7 +29,7 @@ def process_video(video_capture_index, frame_rate="0"):
         mask = cropStreet(frameForMask)
         prev_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         # set the counting line position
-        count_line_y_pos = int((frame.shape[0] * 4 / 5))
+        count_line_ypos = int((frame.shape[0] * 4 / 5))
 
     last_frame_time = 0
     framesSent = 0
@@ -47,9 +48,9 @@ def process_video(video_capture_index, frame_rate="0"):
         )
         detectedVehicles, boundingBoxes = drawBoundingBoxes(contours, frame)
 
-        vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter, count_line_y_pos)
+        vehicleCounter = countVehicles(frame, detectedVehicles, vehicleCounter, count_line_ypos)
 
-        frame = detectVehiclesClass(filteredImage, frame, boundingBoxes)
+        detectVehiclesClass(filteredImage, frame, boundingBoxes)
 
         # draw counter
         cv2.putText(
@@ -86,12 +87,13 @@ def process_video(video_capture_index, frame_rate="0"):
 def index():
 
     video_captures= [{"name": 0, "frame_rates": ["max"]}]
-    for video_path in os.listdir('assets'):
+
+    video_list = os.listdir('assets')
+    video_list.sort()
+    for video_path in video_list:
         cap = cv2.VideoCapture("assets/" + video_path)
         expected_fps = int(cap.get(cv2.CAP_PROP_FPS))
         video_captures.append({"name": video_path, "frame_rates": ["max", expected_fps, 20, 10]})
-
-    print(video_captures)
 
     return render_template('index.html', video_captures=video_captures)
 
@@ -115,4 +117,6 @@ def vlc_stream():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    host_ip = config.server_ip
+    host_port = config.server_port
+    app.run(host=host_ip, port=host_port)
