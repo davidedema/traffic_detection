@@ -17,6 +17,7 @@
 - [Project Description](#project-description)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
+- [Running the project](#running-the-project)
 
 
 ## Project Description
@@ -41,22 +42,54 @@ Desktop/traffic_detection
 ├── counting_vehicles.py
 ├── http_streaming_server.py
 ├── README.md
-├── receiver.py
 ├── requirements.txt
-├── sender.py
+├── sockets
+│   ├── receiver.py
+│   └── sender.py
 └── templates
     ├── index.html
     └── video_viewer.html
 ```
 
+`http_streaming_server.py` is the file for starting the webserver. This will expose two API for the client to connect to the server and receive the video stream.
 
-The main folder is:
-- `prolog_project` it contains the ROS node (motion node and **planner** node)
-    - scripts: Contains the two node plus the utilities
-    - msg: Contains the `.msg` file for ROS communication
 
-`block_world.pl` is the prolog file, the core of this project.
-
-`python_node_poc.py` is a simple proof of concept for the pyswip wrapper for prolog
+`counting_vehicles.py` is the file to run directly a simulation of the traffic detection. It will read the video from the assets folder and process it. It also contains the code for the traffic detection used in the server.
 
 ## Installation
+
+In order to run the project you'll need to clone it and install the requirements. We suggest you to create a virtual environment 
+- Clone it
+
+    ```BASH
+    git clone https://github.com/davidedema/traffic_detection
+
+    ```
+- Create the virtual environment where you want, activate it and install the dependencies 
+  
+    ```BASH
+    cd path/of/the/project
+    python -m venv /name/of/virtual/env
+    source name/bin/activate
+    pip install -r requirements.txt
+    ```
+
+## Running the project
+
+The project could be runned in two different ways:
+- Through web server
+  
+    ```
+    python http_streaming_server.py
+    ```
+    After running the server, the url is shown directly in the terminal. You can connect to the server by typing the url in the browser. If you want to watch the stream from a media player such as VLC, you can simply execute the following command:
+
+    ```BASH
+    vlc servel_url/stream_video
+    ```
+
+- Running directly:
+  
+    ```
+    python traffic_detection.py
+    ```
